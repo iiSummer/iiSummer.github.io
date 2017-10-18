@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>shell脚本监控rabbitmq队列死信消息数量 | Summer</title>
+
+    <link href="../css/bootstrap.min.css" rel="stylesheet">
+    <link href="../css/font-awesome.min.css" rel="stylesheet">
+
+    <link href="../css/animate.css" rel="stylesheet">
+    <link href="../css/style.css" rel="stylesheet">
+
+    	<link href="../css/codemirror.css" rel="stylesheet">
+
+</head>
+
+<body class="blog-page">
+
+<div class="header-back">
+    <div class="post-title">
+        <h1>
+        	shell脚本监控rabbitmq队列死信消息数量
+        </h1>
+        <div class="navy-line"> </div>
+		<ul class="text-muted">
+		    <li><i class="fa fa-user"></i> Summer </li> 
+		    <li><i class="fa fa-calendar-o"></i> 发表于 2017-03-27 </li> 
+		    <li><i class="fa fa-clock-o"></i> 10:15:00 </li>
+		</ul>
+    </div>
+</div>
+<div id="wrapper">
+    <div class="gray-bg">
+        <div class="wrapper wrapper-content  animated fadeInRight article">
+            <div class="row">
+                <div class="col-md-8 col-md-offset-2">
+                    <div class="ibox">
+                        <div class="ibox-content">
+                            <div class="post-content">
+							
+							<p>
+							    项目中用到了RabbitMq进行消息通知，发布到生产上的时候考虑到死信的消息需要通知到相关的维护人员，这样能够及时的处理问题</br>
+							    这里当时考虑了两种方案，第一种扔一个小的SpringBoot的程序jar包上去执行，只做Job进行调用RabbitMq监控页面上提供的API方法进行判断是否发邮件提醒，第二种是在服务器上启一个cron进行定时任务用命令查询死信队列的数量进行邮件提示。
+							    后面商讨决定采用第二种，然后我就屁颠屁颠去找Shell文档去寻求帮助了。
+							</p>
+							<p>
+							    准备工作</br>  
+							    首先下载了一个sendEmail进行发邮件测试，环境配置之类网上都有教程了。</br>
+							    然后先启动一个定时任务进行发邮件的测试看看是否ok，我这里业务需求五分钟去扫描一次。
+							    <pre>*/5 * * * * /bin/bash /usr/sendEmail-v1.56/rabbitmq-monitor.sh</pre>
+							</p>
+							<p>
+							    下面就是我业务的Shell代码了
+							<textarea id="code1">
+#!/bin/bash
+email_reciver="多个收件人地址空格分开"
+email_smtphost=smtp.163.com
+email_sender=发送邮箱
+email_username=发送邮箱的用户名
+email_password=发送邮箱的密码
+email_title="MQ Error Queue Warning!!"
+declare -A queueJson
+declare -A statisName
+declare -A statisValue
+declare -A queueName
+queueIndex=0
+statisIndex=0
+for QUEUE in &#36;(docker exec -i rabbitmq-ct rabbitmqctl list_queues -p xxx |grep ERROR | awk -F' ' '{print &#36;1}');
+do
+    quname=&#36;QUEUE
+    qvalue=&#36;(docker exec -i rabbitmq-ct rabbitmqctl list_queues -p xxx |grep &#36;QUEUE | awk -F' ' '{print &#36;2}')
+    queueJson[&#36;quname]=&#36;qvalue
+    statisName[&#36;statisIndex]=&#36;quname
+    statisValue[&#36;statisIndex]=&#36;qvalue
+    nums=&#36;{queueJson[&#36;quname]}
+    if [[ &#36;nums -gt 0 ]]; then
+        for line in &#36;(cat /usr/sendEmail-v1.56/rabbitmq-statis.txt)
+           do
+             vname=`(echo &#36;line | awk -F'=' '{print &#36;1}')`
+             vvalue=`(echo &#36;line | awk -F'=' '{print &#36;2}')`
+             if [[ &#36;quname = &#36;vname ]]; then
+                statisName[&#36;statisIndex]=&#36;quname
+                statisValue[&#36;statisIndex]=&#36;qvalue
+                if [[ &#36;qvalue -gt &#36;vvalue ]]; then
+                  queueName[&#36;queueIndex]=&#36;QUEUE
+                  queueIndex=`expr &#36;queueIndex + 1`
+                fi
+             fi
+           done
+    fi
+    statisIndex=`expr &#36;statisIndex + 1`
+done
+cat /dev/null > /usr/sendEmail-v1.56/rabbitmq-statis.txt
+for((i=0;i<&#36;statisIndex;++i))
+do
+  echo &#36;{statisName[&#36;i]}=&#36;{statisValue[&#36;i]} >> /usr/sendEmail-v1.56/rabbitmq-statis.txt
+done
+exceptionNum=&#36;{#queueName[@]}
+if [[ &#36;exceptionNum -gt 0 ]]; then
+    email_content="Hi,Dear: Please pay attention!"
+    for name in &#36;{queueName[*]}
+    do
+        email_content=&#36;email_content"\\n&#36;{name}:&#36;{queueJson[&#36;{name}]}"
+    done
+    /usr/local/bin/sendEmail -f &#36;{email_sender} -t &#36;{email_reciver} -s &#36;{email_smtphost} -u &#36;{email_title} -xu &#36;{email_username} -xp &#36;{email_password} -m &#36;{email_content} -o message-charset=utf-8
+fi
+</textarea>
+							</p>
+							<p>
+							    这里几个点我备注一下，因为服务器上RabbitMq是docker部署的，所以开头docker访问，xxx是指的RabbitMq的vhost的名字，后面grep error主要是业务里规范了死信队列的命名是带有ERROR关键字，这里避免了获取所有队列出来比较的麻烦
+							    <div class="well">$(<code>docker</code> exec -i rabbitmq-ct rabbitmqctl list_queues -p <code>xxx</code> |grep <code>ERROR</code> | awk -F' ' '{print $1}</div>
+							</p>
+							<p>
+							    然后通过awk -F 空格进行分割将获取的结果第一个是队列的名字，第二个是队列的数量，这样我们就可以做业务处理了。
+							    <pre>TOPIC.QUEUE.ERROR       105</pre>
+							</p>
+							<p>
+							    我这里还用到了一个文件<code>rabbitmq-statis.txt</code>，这里主要是记录每一次扫描死信队列的队列名字和对应的数量，执行的时候判断下本次死信队列和上一次对比有没有增长，如果有比上次数量大则进行邮件发送提醒，提醒XXX队列的数量有多少，如果比上次记录的数量少，则更新成当前数量。到这里基本上监控死信队列的业务就大致完成啦。
+							</p>
+							
+							</div>
+                            <hr>
+                            <div class="row">
+                                <div class="col-md-6">
+                                        <h5>标签:</h5>
+                                                <button class="btn btn-default btn-xs" type="button">原创</button>
+                                                <button class="btn btn-white btn-xs" type="button">Shell</button>
+                                                <button class="btn btn-white btn-xs" type="button">RabbitMq</button>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="small text-right">
+                                        <h5>状态:</h5>
+                                        <div> <i class="fa fa-comments-o"> </i> 0 收藏 </div>
+                                        <i class="fa fa-eye"> </i> 0 浏览
+                                    </div>
+                                </div>
+                            </div>
+							<div class="row">
+							    <div class="col-lg-12">
+								    <!-- Comments -->
+								    <div id="rlcomment"></div>
+								    <script src="../js/jquery-2.1.1.js"></script>
+								    <script src="../js/rl-comments.js"></script>
+								    <script type="text/javascript">
+									    window.RLComments.init("d37587644b50b92c7941675d1de81505",document.getElementById("rlcomment"))
+								    </script>
+								    <!-- Comments -->
+							    </div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+	</div>
+
+</div>
+
+
+<section id="about" class="gray-section contact">
+    <div class="container">
+		<div class="row m-b-lg">
+            <div class="col-lg-12 text-center">
+                <div class="navy-line"></div>
+                <h1>Who Am I?</h1>
+                <p>This Is Just The Beginning.</p>
+            </div>
+        </div>
+        <div class="row m-b-lg">
+            <div class="col-sm-3 col-sm-offset-3">
+				<strong><span class="navy">关于我</span></strong><br/>
+				Summer<br/>
+				<i class="fa fa-map-marker"></i> 浙江省杭州市上城区
+            </div>
+            <div class="col-sm-4">
+                <p class="text-color">
+                     Java 程序猿一枚，从事后端开发，非常喜欢前端技术，对新鲜的技术和插件兴趣浓厚<br/>
+					 业余爱玩各种网游(LOL，守望屁股)<br/>
+					 欢迎朋友们交流
+                </p>
+            </div>
+        </div>
+		
+        <div class="row signature">
+            <div class="col-lg-8 col-lg-offset-2 text-center m-t-lg m-b-lg">
+                <p>To the world you may be one person, but to one person you may be the world .<br>
+				<strong>&copy; 2016 - 2017 | Summer</strong> Made with <i class="fa fa-heart heart" style="color:red"></i> by <a href="http://www.ismmu.com">Summer</a>.</p>
+				<ul class="list-inline social-icon">
+                    <li><a href="javascript:void(0);"><i class="fa fa-qq"></i></a>
+                    </li>
+                    <li><a href="javascript:void(0);"><i class="fa fa-weixin"></i></a>
+                    </li>
+                    <li><a href="javascript:void(0);"><i class="fa fa-weibo"></i></a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</section>
+
+    <!-- Mainly scripts -->
+    <script src="../js/jquery-2.1.1.js"></script>
+    <script src="../js/bootstrap.min.js"></script>
+    	<script src="../js/codemirror.js"></script>
+    
+    <script>
+        $(document).ready(function(){
+             var editor_one = CodeMirror.fromTextArea(document.getElementById("code1"), {
+                 lineNumbers: true,
+                 matchBrackets: true,
+                 styleActiveLine: true,
+                 theme:"ambiance"
+             });
+			 editor_one.setSize('auto','1150px');
+        });
+    </script>
+
+</body>
+
+</html>

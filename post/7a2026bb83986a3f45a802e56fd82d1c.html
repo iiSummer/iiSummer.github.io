@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+
+    <title>Spring Boot + RabbitMq实例  | Summer</title>
+
+    <link href="../css/bootstrap.min.css" rel="stylesheet">
+    <link href="../css/font-awesome.min.css" rel="stylesheet">
+
+    <link href="../css/animate.css" rel="stylesheet">
+    <link href="../css/style.css" rel="stylesheet">
+
+    	<link href="../css/codemirror.css" rel="stylesheet">
+
+</head>
+
+<body class="blog-page">
+
+<div class="header-back">
+    <div class="post-title">
+        <h1>
+        	Spring Boot + RabbitMq实例 
+        </h1>
+        <div class="navy-line"> </div>
+		<ul class="text-muted">
+		    <li><i class="fa fa-user"></i> Summer </li> 
+		    <li><i class="fa fa-calendar-o"></i> 发表于 2017-03-27 </li> 
+		    <li><i class="fa fa-clock-o"></i> 15:12:29 </li>
+		</ul>
+    </div>
+</div>
+<div id="wrapper">
+    <div class="gray-bg">
+        <div class="wrapper wrapper-content  animated fadeInRight article">
+            <div class="row">
+                <div class="col-md-8 col-md-offset-2">
+                    <div class="ibox">
+                        <div class="ibox-content">
+                            <div class="post-content">
+							
+							<p>
+							    最近接到的老项目都是年代是真的有一些了，业务耦合太紧，想办法去解耦一下，于是想到了用RabbitMq，这里新启一个项目进行解耦的工作
+							</p>
+							<p>
+							    首先去<code><a href="http://www.rabbitmq.com/download.html" target="_blank">RabbitMq</a></code>官网直接下载安装（我这里本地开发安装Windows版本，线上服务器装的是Linux版本，这里自行选择，安装配置过程都差不多）。
+							</p>
+							<p>
+							    因为新项目工程我是用SpringBoot去搭建的，所以这里配置项在<code>application.yml</code>中进行配置，端口没有修改默认为5672
+							    <pre>
+spring:
+    rabbitmq:
+        host: localhost
+        port: 5672
+        username: summer
+        password: 123456
+        virtual-host: /</pre>
+							</p>
+							<p>这里可以在RabbitMq的安装bin目录下开启web监控页面，这个挺好用的，避免每次查看队列状态的时候去敲命令行（习惯用命令行的忽略即可），打开localhost:15672访问监控页面</p>
+							<pre>$ rabbitmq-plugins enable rabbitmq_management</pre>
+							<img src="http://www.ismmu.com/images/blog/content/19d266b5f16cd0af379277f6633dca5e.png" />
+							<p>
+							    这个web页面也可以手动创建<code>exchange</code>，<code>queue</code>
+							</p>
+							<p>
+							    我这里用maven管理，在工程pom.xml下添加依赖
+							    <pre>
+&lt;!-- SpringBoot + AMQP --&gt;
+&lt;dependency&gt;
+    &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
+    &lt;artifactId&gt;spring-boot-starter-amqp&lt;/artifactId&gt;
+&lt;/dependency&gt;</pre>
+							</p>
+							<p>
+							    EXchange配置，这里我用到的<code>Topic</code>的exchange，因为业务要求，我这里做了三层的延迟队列用于保障在消费的时候网络波动异常而做后续阶段的延迟同步操作（这里调用Http请求访问另外一个业务服务器同步数据，这里如果Http调用失败则1分钟之后再调，如果在失败则1小时候后再调用，失败之后就是1天之后再调用，还是失败的话就扔到死信队列里进行提示维护人员进行人工排查）</br>
+							    因为业务消费者的监听太多这里就不完全展示了，只贴出一例看看demo了
+							    <textarea id="code1">
+/**
+ * EXchange配置
+ */
+@Configuration
+public class ContractExchangeConfig {
+    @Bean
+    TopicExchange topicExchangePatientMsg(RabbitAdmin rabbitAdmin) {
+        TopicExchange topicExchange = new TopicExchange(MQConstants.TOPIC_EXCHANGE_PATIENTMSG);
+        rabbitAdmin.declareExchange(topicExchange);
+        return topicExchange;
+    }
+
+    @Bean
+    TopicExchange topicExchangeDelayOne(RabbitAdmin rabbitAdmin) {
+        TopicExchange topicExchange = new TopicExchange(MQConstants.TOPIC_EXCHANGE_DELAY_ONE);
+        rabbitAdmin.declareExchange(topicExchange);
+        return topicExchange;
+    }
+    /************************* 一分钟延迟队列绑定关系 **************************/
+    @Bean
+    Binding bindingDelayMinExchangePatient(Queue delayOneMinutePatientQueue, TopicExchange topicExchangeDelayOne, RabbitAdmin rabbitAdmin) {
+        Binding binding = BindingBuilder.bind(delayOneMinutePatientQueue).to(topicExchangeDelayOne).with(MQConstants.ROUTINGKEY_PATIENTMSG_TYPECODE_ALL);
+        rabbitAdmin.declareBinding(binding);
+        return binding;
+    }
+    
+    @Bean
+    Queue delayOneMinutePatientQueue(RabbitAdmin rabbitAdmin) {
+        Map<String, Object> map = new HashMap<String, Object>();
+        map.put("x-dead-letter-exchange", MQConstants.TOPIC_EXCHANGE_PATIENTMSG);
+        map.put("x-message-ttl", 60000);
+        Queue queue = new Queue(MQConstants.TOPIC_QUEUE_DELAY_ONE_PATIENTMSG, true, false, false, map);
+        rabbitAdmin.declareQueue(queue);
+        return queue;
+    }
+}</textarea>
+							</p>
+							<p>
+							    因为这里需要手动ack操作，所以在 RabbitListenerConfigurer消费者监听配置类里进行业务Listener的配置
+							    <textarea id="code2">
+/**
+ * 消费者监听配置类
+ * @author Summer 2017-03-01
+ */
+@Configuration
+@EnableRabbit
+public class ConsumerConfig implements RabbitListenerConfigurer {
+
+    @Autowired
+    YCUserListener ycUserListener;
+
+    @Bean
+    public DefaultMessageHandlerMethodFactory myHandlerMethodFactory() {
+        DefaultMessageHandlerMethodFactory factory = new DefaultMessageHandlerMethodFactory();
+        factory.setMessageConverter(new MappingJackson2MessageConverter());
+        return factory;
+    }
+
+    @Bean
+    public SimpleMessageListenerContainer YCUserListenerContainer(ConnectionFactory connectionFactory) {
+        SimpleMessageListenerContainer factory = new SimpleMessageListenerContainer();
+        factory.setConnectionFactory(connectionFactory);
+        factory.setAcknowledgeMode(AcknowledgeMode.MANUAL);
+        factory.setMessageListener(ycUserListener);
+        factory.setQueueNames(MQConstants.QUEUE_YCUSER_USERSYNC);
+        return factory;
+    }
+}</textarea>
+							</p>
+							<p>
+							    这里业务类 里面进行三层的消息同步保障（service里抛出异常给Listener捕获进行处理）
+							    <textarea id="code3">
+public class UserListener implements ChannelAwareMessageListener {
+    
+    private static Logger logger = LoggerFactory.getLogger(UserListener.class);
+
+    @Autowired
+    private UserService userService;
+    
+    @Autowired
+    private RabbitMessagingTemplate rabbitMessagingTemplate;
+
+    @Override
+    public void onMessage(Message message, Channel channel) throws Exception {
+        String receiveMsg = null;
+        try {
+            receiveMsg = new String(message.getBody(), "UTF-8");
+            //dosomething
+            //userService调用业务处理过程
+            channel.basicAck(message.getMessageProperties().getDeliveryTag(), false);
+        } catch (IOException e) {
+            ArrayList<Map<String, Object>> deathList = (ArrayList<Map<String, Object>>) message.getMessageProperties().getHeaders().get("x-death");
+            if (deathList == null) {
+                channel.basicAck(message.getMessageProperties().getDeliveryTag(), false);
+                rabbitMessagingTemplate.convertAndSend(MQConstants.TOPIC_EXCHANGE_DELAY_ONE, message.getMessageProperties().getReceivedRoutingKey(), receiveMsg);
+            } else if (MQConstants.TOPIC_EXCHANGE_DELAY_ONE.equals(deathList.get(0).get("exchange"))) {
+                channel.basicAck(message.getMessageProperties().getDeliveryTag(), false);
+                rabbitMessagingTemplate.convertAndSend(MQConstants.TOPIC_EXCHANGE_DELAY_HOUR, message.getMessageProperties().getReceivedRoutingKey(), receiveMsg);
+            } else if (MQConstants.TOPIC_EXCHANGE_DELAY_HOUR.equals(deathList.get(0).get("exchange"))) {
+                channel.basicAck(message.getMessageProperties().getDeliveryTag(), false);
+                rabbitMessagingTemplate.convertAndSend(MQConstants.TOPIC_EXCHANGE_DELAY_DAY, message.getMessageProperties().getReceivedRoutingKey(), receiveMsg);
+            } else {
+                channel.basicReject(message.getMessageProperties().getDeliveryTag(), false);
+                logger.error("YCUserListener error, Message:" + receiveMsg, e);
+            }
+        } catch (Exception ex) {
+            // 记录错误日志，同时将消息抛到死信队列中去
+            channel.basicReject(message.getMessageProperties().getDeliveryTag(), false);
+            logger.error(ex.getMessage(), ex);
+        }
+    }
+}</textarea>
+							</p>
+							<p>
+							    我这里的有三个队列作为延迟队列使用
+							    <pre>
+/**
+ * 用户延迟队列（一分钟延迟）
+ */
+public static final String TOPIC_QUEUE_DELAY_ONE_USER = "TOPIC.QUEUE.DELAY.ONE.USER";
+
+/**
+ * 用户延迟队列（一小时延迟）
+ */
+public static final String TOPIC_QUEUE_DELAY_HOUR_USER = "TOPIC.QUEUE.DELAY.HOUR.USER";
+
+/**
+ * 用户延迟队列（一天）
+ */
+public static final String TOPIC_QUEUE_DELAY_DAY_USER = "TOPIC.QUEUE.DELAY.DAY.USER";</pre>
+							</p>
+							<p>
+							    三个延迟队列的配置如下
+							    <pre>
+    @Bean
+    Queue delayOneMinuteUserQueue(RabbitAdmin rabbitAdmin) {
+        Map<String, Object> map = new HashMap<String, Object>();
+        map.put("x-dead-letter-exchange", MQConstants.TOPIC_EXCHANGE_YCUSER);
+        map.put("x-message-ttl", 60000);
+        Queue queue = new Queue(MQConstants.TOPIC_QUEUE_DELAY_ONE_USER, true, false, false, map);
+        rabbitAdmin.declareQueue(queue);
+        return queue;
+    }
+    @Bean
+    Queue delayOneHourUserQueue(RabbitAdmin rabbitAdmin) {
+        Map<String, Object> map = new HashMap<String, Object>();
+        map.put("x-dead-letter-exchange", MQConstants.TOPIC_EXCHANGE_YCUSER);
+        map.put("x-message-ttl", 3600000);
+        Queue queue = new Queue(MQConstants.TOPIC_QUEUE_DELAY_HOUR_USER, true, false, false, map);
+        rabbitAdmin.declareQueue(queue);
+        return queue;
+    }
+    @Bean
+    Queue delayOneDayUserQueue(RabbitAdmin rabbitAdmin) {
+        Map<String, Object> map = new HashMap<String, Object>();
+        map.put("x-dead-letter-exchange", MQConstants.TOPIC_EXCHANGE_YCUSER);
+        map.put("x-message-ttl", 86400000);
+        Queue queue = new Queue(MQConstants.TOPIC_QUEUE_DELAY_DAY_USER, true, false, false, map);
+        rabbitAdmin.declareQueue(queue);
+        return queue;
+    }</pre>
+							</p>
+							<p>
+							    当我业务service产生异常的时候（这里只做了IO异常的延迟同步机制），将消息抛到延迟一分钟的队列<code>TOPIC.QUEUE.DELAY.ONE.USER</code>中，如果再次消费时调用还是IO异常的话继续抛出到延迟一小时的消息队列<code>TOPIC.QUEUE.DELAY.HOUR.USER</code>，第三次消费还是IO失败的话再次抛出到延迟一天的延迟消息队列<code>TOPIC.QUEUE.DELAY.DAY.USER</code>中，一天之后再消费还是失败直接扔到死信队列中邮件通知相关维护人员进行问题定位处理了。
+							</p>
+							
+							</div>
+                            <hr>
+                            <div class="row">
+                                <div class="col-md-6">
+                                        <h5>标签:</h5>
+                                                <button class="btn btn-white btn-xs" type="button">Spring Boot</button>
+                                                <button class="btn btn-white btn-xs" type="button">Java</button>
+                                                <button class="btn btn-white btn-xs" type="button">RabbitMq</button>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="small text-right">
+                                        <h5>状态:</h5>
+                                        <div> <i class="fa fa-comments-o"> </i> 0 收藏 </div>
+                                        <i class="fa fa-eye"> </i> 0 浏览
+                                    </div>
+                                </div>
+                            </div>
+							<div class="row">
+							    <div class="col-lg-12">
+								    <!-- Comments -->
+								    <div id="rlcomment"></div>
+								    <script src="../js/jquery-2.1.1.js"></script>
+								    <script src="../js/rl-comments.js"></script>
+								    <script type="text/javascript">
+									    window.RLComments.init("7a2026bb83986a3f45a802e56fd82d1c",document.getElementById("rlcomment"))
+								    </script>
+								    <!-- Comments -->
+							    </div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+	</div>
+</div>
+
+
+<section id="about" class="gray-section contact">
+    <div class="container">
+		<div class="row m-b-lg">
+            <div class="col-lg-12 text-center">
+                <div class="navy-line"></div>
+                <h1>Who Am I?</h1>
+                <p>This Is Just The Beginning.</p>
+            </div>
+        </div>
+        <div class="row m-b-lg">
+            <div class="col-sm-3 col-sm-offset-3">
+				<strong><span class="navy">关于我</span></strong><br/>
+				Summer<br/>
+				<i class="fa fa-map-marker"></i> 浙江省杭州市上城区
+            </div>
+            <div class="col-sm-4">
+                <p class="text-color">
+                     Java 程序猿一枚，从事后端开发，非常喜欢前端技术，对新鲜的技术和插件兴趣浓厚<br/>
+					 业余爱玩各种网游(LOL，守望屁股)<br/>
+					 欢迎朋友们交流
+                </p>
+            </div>
+        </div>
+		
+        <div class="row signature">
+            <div class="col-lg-8 col-lg-offset-2 text-center m-t-lg m-b-lg">
+                <p>To the world you may be one person, but to one person you may be the world .<br>
+				<strong>&copy; 2016 - 2017 | Summer</strong> Made with <i class="fa fa-heart heart" style="color:red"></i> by <a href="http://www.ismmu.com">Summer</a>.</p>
+				<ul class="list-inline social-icon">
+                    <li><a href="javascript:void(0);"><i class="fa fa-qq"></i></a>
+                    </li>
+                    <li><a href="javascript:void(0);"><i class="fa fa-weixin"></i></a>
+                    </li>
+                    <li><a href="javascript:void(0);"><i class="fa fa-weibo"></i></a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</section>
+
+    <!-- Mainly scripts -->
+    <script src="../js/jquery-2.1.1.js"></script>
+    <script src="../js/bootstrap.min.js"></script>
+    	<script src="../js/codemirror.js"></script>
+    
+    <script>
+        $(document).ready(function(){
+             var editor_one = CodeMirror.fromTextArea(document.getElementById("code1"), {
+                 lineNumbers: true,
+                 matchBrackets: true,
+                 styleActiveLine: true,
+                 theme:"ambiance"
+             });
+			 editor_one.setSize('auto','800px');
+			 var editor_two = CodeMirror.fromTextArea(document.getElementById("code2"), {
+                 lineNumbers: true,
+                 matchBrackets: true,
+                 styleActiveLine: true,
+                 theme:"ambiance"
+             });
+			 editor_two.setSize('auto','600px');
+			 var editor_three = CodeMirror.fromTextArea(document.getElementById("code3"), {
+                 lineNumbers: true,
+                 matchBrackets: true,
+                 styleActiveLine: true,
+                 theme:"ambiance"
+             });
+			 editor_three.setSize('auto','870px');
+        });
+    </script>
+
+</body>
+
+</html>

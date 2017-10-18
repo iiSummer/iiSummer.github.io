@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+
+    <title>Spring Cloud 学习篇 | Summer</title>
+
+    <link href="../css/bootstrap.min.css" rel="stylesheet">
+    <link href="../css/font-awesome.min.css" rel="stylesheet">
+
+    <link href="../css/animate.css" rel="stylesheet">
+    <link href="../css/style.css" rel="stylesheet">
+
+    	<link href="../css/codemirror.css" rel="stylesheet">
+
+</head>
+
+<body class="blog-page">
+
+<div class="header-back">
+    <div class="post-title">
+        <h1>
+        	Spring Cloud 学习篇
+        </h1>
+        <div class="navy-line"> </div>
+		<ul class="text-muted">
+		    <li><i class="fa fa-user"></i> Summer </li> 
+		    <li><i class="fa fa-calendar-o"></i> 发表于 2017-05-12 </li> 
+		    <li><i class="fa fa-clock-o"></i> 16:58:51 </li>
+		</ul>
+    </div>
+</div>
+<div id="wrapper">
+    <div class="gray-bg">
+        <div class="wrapper wrapper-content  animated fadeInRight article">
+            <div class="row">
+                <div class="col-md-8 col-md-offset-2">
+                    <div class="ibox">
+                        <div class="ibox-content">
+                            <div class="post-content">
+							
+							<p>
+							    因为公司项目要用到Spring Cloud微服务框架，所以最近一直在看Spring Cloud的东东.</br>
+							    这里记录一下笔记心得...</br>
+							  Spring Cloud是基于Spring Boot的一整套实现微服务的框架。他提供了微服务开发所需的
+							    配置管理、服务发现、断路器、智能路由、微代理、控制总线、全局锁、决策竞选、分布式会话和集群状态管理等组件。
+							</p>
+							<div class="well">
+							    详细文档和案例请参考<code><a target="_blank" href="https://springcloud.cc/">Spring Cloud 中文网</a></code>和
+							  <code><a target="_blank" href="http://bbs.springcloud.cn/">Spring Cloud 中文社区</a></code>和
+							  <code><a target="_blank" href="https://projects.spring.io/spring-cloud/">Spring 官网</a></code>
+							</div>
+							<p>
+							    好吧，参考各种大神和案例自己写个demo尝试下，新建了三个Spring Cloud基础服务项目，两个业务项目
+							</p>
+							<img src="http://www.ismmu.com/images/blog/content/31272715f1a48b397a9f8108e3c49bba.png" />
+							<p>
+							    <code>config-server</code>配置中心，主要是用来做统一配置的服务（暂时只做了git和本地配置文件的服务）。</br>
+							    <code>eureka-server</code>服务注册、发现中心，提供所有的服务注册到Eureka服务器上，和查看所有注册的服务界面。</br>
+							    <code>gateway-server</code>网关中心，用于给所有的客户端请求通过这个网关服务进行路由配置来判断一个URL由哪个服务进行处理。</br>
+							    <code>service-A</code> <code>service-B</code>业务服务demo，业务服务的项目，这里我采用的是Feign的方式进行服务间的相互访问。</br>
+							    <label class="label label-info">这里基础配置的我就不贴了，很多教程都有demo的</label>
+							</p>
+							<p>
+							    这里主要记录下我的踩坑实例，避免下次摔倒两次...
+							</p>
+							<p>
+							    <label class="label label-danger">config-server启动报错Unsupported major.minor version 52.0</label></br>
+							    似乎是因为我用到了高版本的spring-cloud框架，但是本地采用了JDK1.7，后来换成JDK1.8解决了！
+							</p>
+							<p>
+							    <label class="label label-danger">spring-cloud框架版本不兼容问题</label></br>
+							    这里因为参考网上的贴子，用的版本比较老一点，我本地就构建的时候用到了最新版直接把<code>&lt;parent&gt;</code>里的版本<code>&lt;version&gt;1.3.5.RELEASE&lt;/version&gt;</code>调高了，没有对应的去调整<code>&lt;dependencyManagement&gt;</code>里的版本号<code>&lt;version&gt;Brixton.RELEASE&lt;/version&gt;</code>，导致产生这个问题，这里提醒了我每次调整版本的时候去spring官网查看对应的版本信息...
+							    <textarea id="code1">
+	<parent>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-parent</artifactId>
+		<version>1.5.3.RELEASE</version>
+		<relativePath />
+	</parent>
+
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>org.springframework.cloud</groupId>
+				<artifactId>spring-cloud-dependencies</artifactId>
+				<version>Dalston.RELEASE</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
+</textarea>
+							    
+							</p>
+							<p>
+							    <label class="label label-danger">config配置中心作为服务接入时，config客户端配置问题</label></br>
+							    当config-server作为服务时注册时，在config客户端中bootstrap.properties配置文件里才能起作用
+							    <div class="well">
+							    spring.cloud.config.discovery.enabled=true</br>
+							    spring.cloud.config.discovery.serviceId=config-server
+							    </div>
+							</p>
+							<p>
+							    <label class="label label-danger">config客户端从config服务端获取配置规则问题</label></br>
+							    业务服务service-A从通过config-server从git上获取配置时，根据指定的路径以及<code>spring.cloud.config.profile=dev</code>获取到git上对应的文件名为<code>service-A-dev.properties </code>配置文件
+							    通过注解<code>@Value("&#36;{c}")</code>获取到值为<code>service-a</code>
+							    <div class="well">
+							    c=service-a
+							    </div>
+							    <textarea id="code2">
+
+@RefreshScope
+@RestController
+public class ConfigController {
+    
+    @Value("&#36;{c}")
+    private String c;
+
+    @RequestMapping("/config")
+    public String from() {
+        return this.c;
+    }
+
+}
+</textarea>
+							</p>
+							
+							</div>
+                            <hr>
+                            <div class="row">
+                                <div class="col-md-6">
+                                        <h5>标签:</h5>
+                                                <button class="btn btn-default btn-xs" type="button">原创</button>
+                                                <button class="btn btn-white btn-xs" type="button">Spring Cloud</button>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="small text-right">
+                                        <h5>状态:</h5>
+                                        <div> <i class="fa fa-comments-o"> </i> 1 收藏 </div>
+                                        <i class="fa fa-eye"> </i> 123 浏览
+                                    </div>
+                                </div>
+                            </div>
+							<div class="row">
+							    <div class="col-lg-12">
+								    <!-- Comments -->
+								    <div id="rlcomment"></div>
+								    <script src="../js/jquery-2.1.1.js"></script>
+								    <script src="../js/rl-comments.js"></script>
+								    <script type="text/javascript">
+									    window.RLComments.init("e4c68ea7bc8ca8f26c222866ffcff277",document.getElementById("rlcomment"))
+								    </script>
+								    <!-- Comments -->
+							    </div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+	</div>
+
+</div>
+
+<section id="about" class="gray-section contact">
+    <div class="container">
+		<div class="row m-b-lg">
+            <div class="col-lg-12 text-center">
+                <div class="navy-line"></div>
+                <h1>Who Am I?</h1>
+                <p>This Is Just The Beginning.</p>
+            </div>
+        </div>
+        <div class="row m-b-lg">
+            <div class="col-sm-3 col-sm-offset-3">
+				<strong><span class="navy">关于我</span></strong><br/>
+				Summer<br/>
+				<i class="fa fa-map-marker"></i> 浙江省杭州市上城区
+            </div>
+            <div class="col-sm-4">
+                <p class="text-color">
+                     Java 程序猿一枚，从事后端开发，非常喜欢前端技术，对新鲜的技术和插件兴趣浓厚<br/>
+					 业余爱玩各种网游(LOL，守望屁股)<br/>
+					 欢迎朋友们交流
+                </p>
+            </div>
+        </div>
+		
+        <div class="row signature">
+            <div class="col-lg-8 col-lg-offset-2 text-center m-t-lg m-b-lg">
+                <p>To the world you may be one person, but to one person you may be the world .<br>
+				<strong>&copy; 2016 - 2017 | Summer</strong> Made with <i class="fa fa-heart heart" style="color:red"></i> by <a href="http://www.ismmu.com">Summer</a>.</p>
+				<ul class="list-inline social-icon">
+                    <li><a href="javascript:void(0);"><i class="fa fa-qq"></i></a>
+                    </li>
+                    <li><a href="javascript:void(0);"><i class="fa fa-weixin"></i></a>
+                    </li>
+                    <li><a href="javascript:void(0);"><i class="fa fa-weibo"></i></a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</section>
+
+    <!-- Mainly scripts -->
+    <script src="../js/jquery-2.1.1.js"></script>
+    <script src="../js/bootstrap.min.js"></script>
+    	<script src="../js/codemirror.js"></script>
+    
+    <script>
+        $(document).ready(function(){
+             var editor_one = CodeMirror.fromTextArea(document.getElementById("code1"), {
+                 lineNumbers: true,
+                 matchBrackets: true,
+                 styleActiveLine: true,
+                 theme:"ambiance"
+             });
+             
+             var editor_two = CodeMirror.fromTextArea(document.getElementById("code2"), {
+                 lineNumbers: true,
+                 matchBrackets: true,
+                 styleActiveLine: true,
+                 theme:"ambiance"
+             });
+        });
+    </script>
+
+</body>
+
+</html>

@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+
+    <title>Hexo + Github 搭建个人博客 | Summer</title>
+
+    <link href="../css/bootstrap.min.css" rel="stylesheet">
+    <link href="../css/font-awesome.min.css" rel="stylesheet">
+
+    <link href="../css/animate.css" rel="stylesheet">
+    <link href="../css/style.css" rel="stylesheet">
+
+
+</head>
+
+<body class="blog-page">
+
+<div class="header-back">
+    <div class="post-title">
+        <h1>
+        	Hexo + Github 搭建个人博客
+        </h1>
+        <div class="navy-line"> </div>
+		<ul class="text-muted">
+		    <li><i class="fa fa-user"></i> Summer </li> 
+		    <li><i class="fa fa-calendar-o"></i> 发表于 2017-05-23 </li> 
+		    <li><i class="fa fa-clock-o"></i> 15:14:27 </li>
+		</ul>
+    </div>
+</div>
+<div id="wrapper">
+    <div class="gray-bg">
+        <div class="wrapper wrapper-content  animated fadeInRight article">
+            <div class="row">
+                <div class="col-md-8 col-md-offset-2">
+                    <div class="ibox">
+                        <div class="ibox-content">
+                            <div class="post-content">
+							
+							<p>
+							码了好多年代码，回头一看，自己都没有博客（这还了得，出门会友目前级别还不够甩出名片，这还如何优雅的装b呢）</br>
+							既然身为程序猿一枚，只能想办法甩出www的名片了 (*^__^*)</br>
+							了解了下WordPress，偶然发现了Hexo发现简洁的风格一下吸引到我... 官网找了一圈发现NexT的主题足够优雅啦</br>
+							说动就动，demo走起！</br>
+							网上各种教程案例各种图文并茂，基本上随手点点就能搭起来了，赞一个。
+							</p>
+							<p>
+							基础的配置和环境搭建我就不多BB了!</br>
+							<h4>环境准备</h4>
+							<div class="well">
+							    1、<code>Git</code>  Git主要是为了安装Hexo运行环境和提交Hexo所生成的静态文件到GitHub下</br>
+							    2、<code>Node.js</code>  运行环境咯</br>
+							    3、<code>GitHub账号</code>  主要是用到了GitHub Pages作为服务器
+							</div>
+							</p>
+							<p>
+							    检查一下本地密匙，没有的话配置一下
+							    <pre>$ cd ~/. ssh 检查本机的ssh密钥 </pre>
+							</p>
+							<p>
+							    然后设置一下用户信息
+							    <pre>$ git config --global user.name "username"//用户名
+$ git config --global user.email  "username@mail.com"//邮箱</pre>
+							</p>
+							<p>
+							    登录GitHub建立一个和用户名一样的username.github.io这种可访问的站Repository，Github Pages的Repository名字是特定的，每个账号下面只能建立一个。
+							</p>
+							<p>
+							    在本地创建一个目录，打开git，执行安装Hexo命令
+							    <pre>$ npm install -g hexo</pre>
+							</p>
+							<p>
+							    初始化hexo，命令：
+							    <pre>$ hexo init</pre>
+							</p>
+							<p>
+							    生成静态页面
+							    <pre>$ hexo generate（hexo g也可以）</pre>
+							</p>
+							<p>
+							    启动本地服务，访问http://localhost:4000进行查看
+							    <pre>$ hexo server</pre>
+							</p>
+							<p>
+							    配置_config.yml
+							    <pre>
+deploy:
+     type: git
+     repository: https://github.com/username/username.github.io.git
+     branch: master</pre>
+							</p>
+							<p>
+							    然后执行命令
+							    <pre>$ npm install hexo-deployer-git --save</pre>
+							</p>
+							<p>
+							    然后部署
+							    <pre>$ hexo deploy</pre>
+							</p>
+							<p>
+							    后面每次部署只需要这样操作就可以啦
+							    <pre>$ hexo clean
+$ hexo generate
+$ hexo deploy</pre>
+							</p>
+							<p>
+							    然后访问https://username.github.io/就可以查看到你的博客啦</br>
+							    ps:每次发布会有几分钟延迟
+							</p>
+							<img src="http://www.ismmu.com/images/blog/content/fb0fe2b7049a18d6768660e2e6fe4220.png" />
+							<p>
+							    Hexo一些常用命令
+							    <div class="well">
+							    hexo new"postName" #新建文章</br>
+							    hexo new page"pageName" #新建页面</br>
+							    hexo generate #生成静态页面至public目录</br>
+							    hexo deploy #将.deploy目录部署到GitHub</br>
+							    hexo help # 查看帮助</br>
+							    hexo version #查看Hexo的版本
+							    </div>
+							</p>
+							
+							</div>
+                            <hr>
+                            <div class="row">
+                                <div class="col-md-6">
+                                        <h5>标签:</h5>
+                                                <button class="btn btn-default btn-xs" type="button">原创</button>
+                                                <button class="btn btn-white btn-xs" type="button">Hexo</button>
+                                                <button class="btn btn-white btn-xs" type="button">Git</button>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="small text-right">
+                                        <h5>状态:</h5>
+                                        <div> <i class="fa fa-comments-o"> </i> 0 收藏 </div>
+                                        <i class="fa fa-eye"> </i> 1 浏览
+                                    </div>
+                                </div>
+                            </div>
+							<div class="row">
+							    <div class="col-lg-12">
+								    <!-- Comments -->
+								    <div id="rlcomment"></div>
+								    <script src="../js/jquery-2.1.1.js"></script>
+								    <script src="../js/rl-comments.js"></script>
+								    <script type="text/javascript">
+									    window.RLComments.init("977401a0c3a7df83986386cf834b85c3",document.getElementById("rlcomment"))
+								    </script>
+								    <!-- Comments -->
+							    </div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+	</div>
+
+</div>
+
+<section id="about" class="gray-section contact">
+    <div class="container">
+		<div class="row m-b-lg">
+            <div class="col-lg-12 text-center">
+                <div class="navy-line"></div>
+                <h1>Who Am I?</h1>
+                <p>This Is Just The Beginning.</p>
+            </div>
+        </div>
+        <div class="row m-b-lg">
+            <div class="col-sm-3 col-sm-offset-3">
+				<strong><span class="navy">关于我</span></strong><br/>
+				Summer<br/>
+				<i class="fa fa-map-marker"></i> 浙江省杭州市上城区
+            </div>
+            <div class="col-sm-4">
+                <p class="text-color">
+                     Java 程序猿一枚，从事后端开发，非常喜欢前端技术，对新鲜的技术和插件兴趣浓厚<br/>
+					 业余爱玩各种网游(LOL，守望屁股)<br/>
+					 欢迎朋友们交流
+                </p>
+            </div>
+        </div>
+		
+        <div class="row signature">
+            <div class="col-lg-8 col-lg-offset-2 text-center m-t-lg m-b-lg">
+                <p>To the world you may be one person, but to one person you may be the world .<br>
+				<strong>&copy; 2016 - 2017 | Summer</strong> Made with <i class="fa fa-heart heart" style="color:red"></i> by <a href="http://www.ismmu.com">Summer</a>.</p>
+				<ul class="list-inline social-icon">
+                    <li><a href="javascript:void(0);"><i class="fa fa-qq"></i></a>
+                    </li>
+                    <li><a href="javascript:void(0);"><i class="fa fa-weixin"></i></a>
+                    </li>
+                    <li><a href="javascript:void(0);"><i class="fa fa-weibo"></i></a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</section>
+
+    <!-- Mainly scripts -->
+    <script src="../js/jquery-2.1.1.js"></script>
+    <script src="../js/bootstrap.min.js"></script>
+
+</body>
+
+</html>

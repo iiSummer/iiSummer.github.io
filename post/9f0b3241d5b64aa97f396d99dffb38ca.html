@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Spring Cloud Security 安全控制 | Summer</title>
+
+    <link href="../css/bootstrap.min.css" rel="stylesheet">
+    <link href="../css/font-awesome.min.css" rel="stylesheet">
+
+    <link href="../css/animate.css" rel="stylesheet">
+    <link href="../css/style.css" rel="stylesheet">
+
+    	<link href="../css/codemirror.css" rel="stylesheet">
+
+</head>
+
+<body class="blog-page">
+
+<div class="header-back">
+    <div class="post-title">
+        <h1>
+        	Spring Cloud Security 安全控制
+        </h1>
+        <div class="navy-line"> </div>
+		<ul class="text-muted">
+		    <li><i class="fa fa-user"></i> Summer </li> 
+		    <li><i class="fa fa-calendar-o"></i> 发表于 2017-05-27 </li> 
+		    <li><i class="fa fa-clock-o"></i> 14:01:48 </li>
+		</ul>
+    </div>
+</div>
+<div id="wrapper">
+    <div class="gray-bg">
+        <div class="wrapper wrapper-content  animated fadeInRight article">
+            <div class="row">
+                <div class="col-md-8 col-md-offset-2">
+                    <div class="ibox">
+                        <div class="ibox-content">
+                            <div class="post-content">
+							
+							<p>
+							    最近看Spring Cloud的文档中看到组件中有<a href="http://cloud.spring.io/spring-cloud-security/" target="_blank">Spring Cloud Security</a>，老规矩，pom.xml引用到项目中进行demo测试。
+							    <pre>
+&lt;!-- 安全机制 --&gt;
+&lt;dependency&gt;
+    &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
+    &lt;artifactId&gt;spring-boot-starter-security&lt;/artifactId&gt;
+&lt;/dependency&gt;</pre>
+							</p>
+							<p>
+							    然后进行权限配置的代码模块写作
+							    <textarea id="code1">
+@Configuration
+@EnableWebSecurity
+public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
+
+    @Autowired
+    private AuthSuccessHandler successHandler;
+
+    @Override
+    protected void configure(AuthenticationManagerBuilder auth) throws Exception {
+        auth.userDetailsService(userDetailsService());
+    }
+
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http
+        .authorizeRequests()
+            .antMatchers("/css/**", "/images/**", "/fonts/**", "/js/**").permitAll()
+            .anyRequest().authenticated()
+            .and()
+        .formLogin()
+            .successHandler(successHandler)
+            .loginPage("/login")
+            .permitAll()
+            .and()
+        .logout()
+            .permitAll();
+    }
+
+    @Override
+    @Bean
+    public UserDetailsService userDetailsService() {
+        return new SecurityUserDetailsService();
+    }
+}</textarea>
+							</p>
+							<p>
+							    configure()中的<code>antMatchers</code>这里主要是配置过滤的url也就是跳过安全验证的资源路径，一般也就是放css、js、image之类的了</br>
+							    <code>loginPage</code>这里顾名思义就是没有进行登录验证的url拦截之后的跳转地址了</br>
+							    <code>successHandler</code>登录成功后的处理方法，我这里主要是用于登录成功后返回业务参数用于前台使用</br>
+							    <code>SecurityUserDetailsService</code>这个就是用户登录验证的业务类了
+							</p>
+							<p>
+							    用户登录业务类代码逻辑
+							    <textarea id="code2">
+public class SecurityUserDetailsService implements UserDetailsService {
+    
+    @Resource
+    private UserService userService;
+    
+    @Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+
+        UserInfo user = userService.getUserByName(username);
+        
+        List<SimpleGrantedAuthority> authorities = new ArrayList<SimpleGrantedAuthority>();
+        authorities.add(new SimpleGrantedAuthority(user.getRole()));
+        
+        return new org.springframework.security.core.userdetails.User(user.getUsername(),
+                user.getPassword(), authorities);
+    }
+}</textarea>
+							</p>
+							<p>
+							    然后启动Application调试ok！
+							</p>
+							
+							</div>
+                            <hr>
+                            <div class="row">
+                                <div class="col-md-6">
+                                        <h5>标签:</h5>
+                                                <button class="btn btn-white btn-xs" type="button">Spring Boot</button>
+                                                <button class="btn btn-white btn-xs" type="button">Security</button>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="small text-right">
+                                        <h5>状态:</h5>
+                                        <div> <i class="fa fa-comments-o"> </i> 0 收藏 </div>
+                                        <i class="fa fa-eye"> </i> 0 浏览
+                                    </div>
+                                </div>
+                            </div>
+							<div class="row">
+							    <div class="col-lg-12">
+								    <!-- Comments -->
+								    <div id="rlcomment"></div>
+								    <script src="../js/jquery-2.1.1.js"></script>
+								    <script src="../js/rl-comments.js"></script>
+								    <script type="text/javascript">
+									    window.RLComments.init("9f0b3241d5b64aa97f396d99dffb38ca",document.getElementById("rlcomment"))
+								    </script>
+								    <!-- Comments -->
+							    </div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+	</div>
+
+</div>
+
+<section id="about" class="gray-section contact">
+    <div class="container">
+		<div class="row m-b-lg">
+            <div class="col-lg-12 text-center">
+                <div class="navy-line"></div>
+                <h1>Who Am I?</h1>
+                <p>This Is Just The Beginning.</p>
+            </div>
+        </div>
+        <div class="row m-b-lg">
+            <div class="col-sm-3 col-sm-offset-3">
+				<strong><span class="navy">关于我</span></strong><br/>
+				Summer<br/>
+				<i class="fa fa-map-marker"></i> 浙江省杭州市上城区
+            </div>
+            <div class="col-sm-4">
+                <p class="text-color">
+                     Java 程序猿一枚，从事后端开发，非常喜欢前端技术，对新鲜的技术和插件兴趣浓厚<br/>
+					 业余爱玩各种网游(LOL，守望屁股)<br/>
+					 欢迎朋友们交流
+                </p>
+            </div>
+        </div>
+		
+        <div class="row signature">
+            <div class="col-lg-8 col-lg-offset-2 text-center m-t-lg m-b-lg">
+                <p>To the world you may be one person, but to one person you may be the world .<br>
+				<strong>&copy; 2016 - 2017 | Summer</strong> Made with <i class="fa fa-heart heart" style="color:red"></i> by <a href="http://www.ismmu.com">Summer</a>.</p>
+				<ul class="list-inline social-icon">
+                    <li><a href="javascript:void(0);"><i class="fa fa-qq"></i></a>
+                    </li>
+                    <li><a href="javascript:void(0);"><i class="fa fa-weixin"></i></a>
+                    </li>
+                    <li><a href="javascript:void(0);"><i class="fa fa-weibo"></i></a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</section>
+
+    <!-- Mainly scripts -->
+    <script src="../js/jquery-2.1.1.js"></script>
+    <script src="../js/bootstrap.min.js"></script>
+    	<script src="../js/codemirror.js"></script>
+    
+    <script>
+        $(document).ready(function(){
+             var editor_one = CodeMirror.fromTextArea(document.getElementById("code1"), {
+                 lineNumbers: true,
+                 matchBrackets: true,
+                 styleActiveLine: true,
+                 theme:"ambiance"
+             });
+			 editor_one.setSize('auto','760px');
+			 var editor_two = CodeMirror.fromTextArea(document.getElementById("code2"), {
+                 lineNumbers: true,
+                 matchBrackets: true,
+                 styleActiveLine: true,
+                 theme:"ambiance"
+             });
+			 editor_two.setSize('auto','400px');
+        });
+    </script>
+
+</body>
+
+</html>
